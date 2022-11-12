@@ -12,18 +12,18 @@ executors:
       - image: alpine:3.7
 
 jobs:
-  checkout_code:
-    executor: alpine_linux
+  # checkout_code:
+  #   executor: alpine_linux
 
-    resource_class: small
-    steps:
-      - run:
-          name: git openssh install
-          command: apk update & apk upgrade & apk add git openssh
-      - checkout
-      - persist_to_workspace:
-          root: ~/project
-          paths:
+  #   resource_class: small
+  #   steps:
+  #     - run:
+  #         name: git openssh install
+  #         command: apk update & apk upgrade & apk add git openssh
+  #     - checkout
+  #     - persist_to_workspace:
+  #         root: ~/project
+  #         paths:
             - .
 
   task_1_check:
@@ -100,8 +100,8 @@ workflows:
       - checkout_code
 
       - task_1_check:
-          requires:
-            - checkout_code
+          # requires:
+          #   - checkout_code
 
       - task_2_check:
           requires:
