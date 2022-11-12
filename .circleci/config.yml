@@ -1,0 +1,116 @@
+version: 2.1
+
+
+orbs:
+  aws-cli: circleci/aws-cli@2.0.3
+  aws-ecr: circleci/aws-ecr@7.2.0
+
+
+executors:
+  alpine_linux:
+    docker:
+      - image: alpine:3.7
+
+jobs:
+  checkout_code:
+    executor: alpine_linux
+
+    resource_class: small
+    steps:
+      - run:
+          name: git openssh install
+          command: apk update & apk upgrade & apk add git openssh
+      - checkout
+      - persist_to_workspace:
+          root: ~/project
+          paths:
+            - .
+
+  task_1_check:
+    executor: alpine_linux
+    resource_class: small
+    steps:
+      - run:
+          name: test env var exist
+          command: |
+            if [ -z "${AWS_ACCESS_KEY_ID}" ] || [ -z "${AWS_SECRET_ACCESS_KEY}" ] || [ -z "${AWS_DEFAULT_REGION}" ]; then
+              echo "ENV variables are not set properly"
+              exit 1
+            fi
+  
+  task_2_check:
+    executor: alpine_linux
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: check if Dockerfile is present
+          command: |
+            if [ -f "./docker/Dockerfile" ]; then
+              echo "Dockerfile present"
+            else
+              echo "Dockerfile is missing"
+              exit 1
+            fi
+
+  
+  build_and_push_staging_image_to_ecr:
+    executor:
+      name: aws-ecr/default
+      use-docker-layer-caching: true
+    steps:
+      - attach_workspace:
+          at: ~/project
+      - aws-ecr/build-and-push-image:
+          dockerfile: docker/Dockerfile
+          region: AWS_DEFAULT_REGION
+          repo: astadevops
+          tag: ${CIRCLE_SHA1}
+
+  # trigger_code_deploy:
+  #     executor: aws-cli/default
+  #     working_directory: ~/project
+  #     steps:
+  #       - attach_workspace:
+  #           at: ~/project
+  #       - run:
+  #           name: Configure deployment
+  #           command: |
+  #             echo IMAGE=${AWS_ECR_ACCOUNT_URL}/cln-ecr-magical-murdock-staging:${CIRCLE_SHA1} >> .env
+  #       - aws-cli/setup
+  #       - aws-code-deploy/push-bundle:
+  #           application-name: calluna-magical-murdock-staging-main_app
+  #           bundle-bucket: calluna-bucket-magical-murdock-staging
+  #           bundle-key: codedeploy/${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BUILD_NUM}
+  #       - aws-code-deploy/deploy-bundle:
+  #           application-name: calluna-magical-murdock-staging-main_app
+  #           bundle-bucket: calluna-bucket-magical-murdock-staging
+  #           bundle-key: codedeploy/${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BUILD_NUM}
+  #           deployment-group: calluna-magical-murdock-staging-main_app-group
+  #       - tools/codedeploy-get-instance-status-on-fail:
+  #           application-name: calluna-magical-murdock-staging-main_app
+  #           deployment-group: calluna-magical-murdock-staging-main_app-group
+
+
+  
+workflows:
+  build_test_deploy:
+    jobs:
+      - checkout_code
+
+      - task_1_check:
+          requires:
+            - checkout_code
+
+      - task_2_check:
+          requires:
+            - task_1_check
+
+      - build_and_push_staging_image_to_ecr:
+          requires:
+            - task_2_check
+
+      # - trigger_code_deploy:
+      #     requires:
+      #       - build_and_push_staging_image_to_ecr
