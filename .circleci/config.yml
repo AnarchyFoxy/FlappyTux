@@ -24,7 +24,7 @@ jobs:
   #     - persist_to_workspace:
   #         root: ~/project
   #         paths:
-            - .
+            # - .
 
   task_1_check:
     executor: alpine_linux
